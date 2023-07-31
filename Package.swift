@@ -5,29 +5,30 @@ import PackageDescription
 import CompilerPluginSupport
 
 let package = Package(
-    name: "BitStreamMacro",
+    name: "sebbu-bit-stream-macros",
     platforms: [.macOS(.v10_15), .iOS(.v13), .tvOS(.v13), .watchOS(.v6), .macCatalyst(.v13)],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
-            name: "BitStreamMacro",
-            targets: ["BitStreamMacro"]
+            name: "SebbuBitStreamMacros",
+            targets: ["SebbuBitStreamMacros"]
         ),
         .executable(
-            name: "BitStreamMacroClient",
-            targets: ["BitStreamMacroClient"]
+            name: "SebbuBitStreamMacroClient",
+            targets: ["SebbuBitStreamMacroClient"]
         ),
     ],
     dependencies: [
         // Depend on the latest Swift 5.9 prerelease of SwiftSyntax
         .package(url: "https://github.com/apple/swift-syntax.git", from: "509.0.0-swift-5.9-DEVELOPMENT-SNAPSHOT-2023-04-25-b"),
+        .package(url: "https://github.com/MarSe32m/sebbu-bitstream.git", branch: "main")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         // Macro implementation that performs the source transformation of a macro.
         .macro(
-            name: "BitStreamMacroMacros",
+            name: "SebbuBitStreamMacrosLib",
             dependencies: [
                 .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
                 .product(name: "SwiftCompilerPlugin", package: "swift-syntax")
@@ -35,17 +36,21 @@ let package = Package(
         ),
 
         // Library that exposes a macro as part of its API, which is used in client programs.
-        .target(name: "BitStreamMacro", dependencies: ["BitStreamMacroMacros"]),
+        .target(name: "SebbuBitStreamMacros", dependencies: ["SebbuBitStreamMacrosLib",
+                                                             .product(name: "SebbuBitStream", package: "sebbu-bitstream")]),
 
         // A client of the library, which is able to use the macro in its own code.
-        .executableTarget(name: "BitStreamMacroClient", dependencies: ["BitStreamMacro"]),
+        .executableTarget(name: "SebbuBitStreamMacroClient", dependencies: ["SebbuBitStreamMacros",
+                                                                       .product(name: "SebbuBitStream", package: "sebbu-bitstream")]),
 
         // A test target used to develop the macro implementation.
         .testTarget(
-            name: "BitStreamMacroTests",
+            name: "SebbuBitStreamMacrosTests",
             dependencies: [
-                "BitStreamMacroMacros",
+                "SebbuBitStreamMacrosLib",
+                "SebbuBitStreamMacros",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
+                .product(name: "SebbuBitStream", package: "sebbu-bitstream")
             ]
         ),
     ]
