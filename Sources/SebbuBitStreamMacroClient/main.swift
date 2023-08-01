@@ -27,7 +27,7 @@ struct Vector {
     var string = "Vector"
 
     @CompressedFloat(min: 0, max: 10.0, bits: 9)
-    var float: Float = 0.0
+    var float: Float
 
     @CompressedDouble(min: -1000.0, max: 1000, bits: 60)
     var double: Double
@@ -68,8 +68,8 @@ struct Vector {
     @CompressedFloatArray(min: -10, max: 10, bits: 8, maxCount: 128)
     var floatArray: [Float]
     
-    @CompressedDoubleArray(min: -10, max: 110, bits: 39, maxCount: 342)
-    var doubleArray: [Double]
+    @CompressedDoubleArray(min: 10, max: 100, bits: 8, maxCount: 1992)
+    var k: [Double]
     
     @CompressedIntArray(min: -992, max: 99824, maxCount: 788723)
     var intArray: [Int]
@@ -113,8 +113,7 @@ struct Vector {
     @Bytes(maxCount: 28)
     var bytess: [UInt8]
 
-    var vecComp: VecoComp
-    
+    var vecComp: VecoComp {VecoComp(x:1, y: 1)}
 }
 
 @BitStreamCoding

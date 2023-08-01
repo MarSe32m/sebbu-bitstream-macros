@@ -9,70 +9,26 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 import SwiftDiagnostics
 
-public struct CompressedUIntMacro: MemberAttributeMacro {
-    public static func expansion(of node: SwiftSyntax.AttributeSyntax, attachedTo declaration: some SwiftSyntax.DeclGroupSyntax, providingAttributesFor member: some SwiftSyntax.DeclSyntaxProtocol, in context: some SwiftSyntaxMacros.MacroExpansionContext) throws -> [SwiftSyntax.AttributeSyntax] {
-        []
-    }
-    
-    private static func getMinValue(_ arguments: [TupleExprElementSyntax]) throws -> String {
-        if let value = arguments[0].expression.as(IntegerLiteralExprSyntax.self)?.digits.text {
-            return value
-        } else if let operatorExpression = arguments[0].expression.as(PrefixOperatorExprSyntax.self) {
-            let operatorToken = operatorExpression.operatorToken?.text ?? ""
-            if let value = operatorExpression.postfixExpression.as(IntegerLiteralExprSyntax.self)?.digits.text {
-                return operatorToken + value
-            }
+public struct CompressedUIntMacro: PeerMacro {
+    public static func expansion(of node: SwiftSyntax.AttributeSyntax, providingPeersOf declaration: some SwiftSyntax.DeclSyntaxProtocol, in context: some SwiftSyntaxMacros.MacroExpansionContext) throws -> [SwiftSyntax.DeclSyntax] {
+        guard let variableDecl = declaration.as(VariableDeclSyntax.self), variableDecl.isStoredProperty else {
+            throw DiagnosticsError(diagnostics: [
+                BitStreamCodingDiagnostic.requiresStoredProperty("'@CompressedUInt'").diagnose(at: Syntax(declaration))
+            ])
         }
-        let message = SimpleDiagnosticMessage(message: "min must be an integerLiteral", diagnosticID: MessageID(domain: "", id: "intLiteral"), severity: .error)
-        let diagnostic = Diagnostic(node: Syntax(arguments[0]), position: arguments[0].position, message: message)
-        throw DiagnosticsError(diagnostics: [diagnostic])
-    }
-    
-    private static func getMaxValue(_ arguments: [TupleExprElementSyntax]) throws -> String {
-        if let value = arguments[1].expression.as(IntegerLiteralExprSyntax.self)?.digits.text {
-            return value
-        } else if let operatorExpression = arguments[1].expression.as(PrefixOperatorExprSyntax.self) {
-            let operatorToken = operatorExpression.operatorToken?.text ?? ""
-            if let value = operatorExpression.postfixExpression.as(IntegerLiteralExprSyntax.self)?.digits.text {
-                return operatorToken + value
-            }
+        try check(variable: variableDecl, attribute: "@CompressedUInt")
+        guard variableDecl.isSimpleType(of: "UInt", "UInt64", "UInt32", "UInt16", "UInt8") else {
+            throw BitStreamCodingDiagnostic.custom("Unsigned integer compression can only be applied to variables of type UInt, UInt64, UInt32, UInt16 or UInt8").error(at: Syntax(variableDecl))
         }
-        let message = SimpleDiagnosticMessage(message: "max must be an integerLiteral", diagnosticID: MessageID(domain: "", id: "intLiteral"), severity: .error)
-        let diagnostic = Diagnostic(node: Syntax(arguments[1]), position: arguments[1].position, message: message)
-        throw DiagnosticsError(diagnostics: [diagnostic])
-    }
-    
-    private static func arguments(from attribute: SwiftSyntax.AttributeSyntax) throws -> [TupleExprElementSyntax] {
-        guard case .argumentList(let argumentList) = attribute.argument else {
-            let message = SimpleDiagnosticMessage(message: "Attribute has no arguments", diagnosticID: MessageID(domain: "", id: "no-arguments"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(attribute), position: attribute.position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
-        }
-        return argumentList.children(viewMode: .sourceAccurate).compactMap { $0.as(TupleExprElementSyntax.self) }
+        return []
     }
     
     internal static func getSyntax(attribute: SwiftSyntax.AttributeSyntax, _ variableDecl: SwiftSyntax.VariableDeclSyntax) throws -> (String, String) {
-        guard let variableName = variableDecl.variableName else {
-            let message = SimpleDiagnosticMessage(message: "Variable has no name.", diagnosticID: MessageID(domain: "", id: "no-variable-name"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(variableDecl), position: variableDecl.position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
-        }
-        guard variableDecl.variableType != nil else {
-            //TODO: Provide fix-it
-            let message = SimpleDiagnosticMessage(message: "Unsigned integer compression can only be applied to variables of type UInt, UInt64, UInt32, UInt16 or UInt8. Explicitly provide the type annotation.", diagnosticID: MessageID(domain: "", id: "annotation"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(variableDecl), position: variableDecl.position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
-        }
-        guard variableDecl.isSimpleType(of: "UInt", "UInt64", "UInt32", "UInt16", "UInt8") else {
-            //TODO: Provide fix-it
-            let message = SimpleDiagnosticMessage(message: "Unsigned integer compression can only be applied to variables of type UInt, UInt64, UInt32, UInt16 or UInt8.", diagnosticID: MessageID(domain: "", id: "only-int"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(variableDecl), position: variableDecl.position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
-        }
-        let arguments = try arguments(from: attribute, desiredAttributeCount: 2)
+        let variableName = variableDecl.variableName!
+        let arguments = try arguments(from: attribute, desiredArgumentCount: 2)
         
-        let minValue = try getMinValue(arguments)
-        let maxValue = try getMaxValue(arguments)
+        let minValue = try get(arguments, name: "min", position: 0, as: .integer)
+        let maxValue = try get(arguments, name: "max", position: 1, as: .integer)
         
         let (minAllowed, maxAllowed) =
             if variableDecl.isSimpleType(of: "UInt") {
@@ -89,21 +45,15 @@ public struct CompressedUIntMacro: MemberAttributeMacro {
                 fatalError("Unreachable")
             }
         guard let minUInt = Int(minValue), let maxUInt = UInt(maxValue), minUInt < maxUInt else {
-            let message = SimpleDiagnosticMessage(message: "The minimum value must be less than the maximum value", diagnosticID: MessageID(domain: "", id: "min < max"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(variableDecl), position: variableDecl.position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
+            throw BitStreamCodingDiagnostic.custom("The minimum value must be less than the maximum value").error(at: Syntax(variableDecl))
         }
         
         guard minUInt >= minAllowed else {
-            let message = SimpleDiagnosticMessage(message: "The minimum value must be more than or equal to \(minAllowed)", diagnosticID: MessageID(domain: "", id: "min >= minAllowed"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(arguments[0]), position: arguments[0].position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
+            throw BitStreamCodingDiagnostic.custom("The minimum value must be more than or equal to \(minAllowed)").error(at: Syntax(variableDecl))
         }
         
         guard maxUInt <= maxAllowed else {
-            let message = SimpleDiagnosticMessage(message: "The maximum value must be less than or equal to \(maxAllowed)", diagnosticID: MessageID(domain: "", id: "max <= maxAllowed"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(arguments[1]), position: arguments[1].position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
+            throw BitStreamCodingDiagnostic.custom("The maximum value must be less than or equal to \(maxAllowed)").error(at: Syntax(variableDecl))
         }
         
         let compressor = "UIntCompressor(minValue: \(minValue), maxValue: \(maxValue))"

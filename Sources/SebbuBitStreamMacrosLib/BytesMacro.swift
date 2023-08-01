@@ -9,18 +9,18 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 import SwiftDiagnostics
 
-public struct BytesMacro: MemberAttributeMacro {
-    public static func expansion(of node: SwiftSyntax.AttributeSyntax, attachedTo declaration: some SwiftSyntax.DeclGroupSyntax, providingAttributesFor member: some SwiftSyntax.DeclSyntaxProtocol, in context: some SwiftSyntaxMacros.MacroExpansionContext) throws -> [SwiftSyntax.AttributeSyntax] {
-        []
-    }
-    
-    private static func getMaxCount(_ arguments: [TupleExprElementSyntax]) throws -> String {
-        if let value = arguments[0].expression.as(IntegerLiteralExprSyntax.self)?.digits.text {
-            return value
+public struct BytesMacro: PeerMacro {
+    public static func expansion(of node: SwiftSyntax.AttributeSyntax, providingPeersOf declaration: some SwiftSyntax.DeclSyntaxProtocol, in context: some SwiftSyntaxMacros.MacroExpansionContext) throws -> [SwiftSyntax.DeclSyntax] {
+        guard let variableDecl = declaration.as(VariableDeclSyntax.self), variableDecl.isStoredProperty else {
+            throw DiagnosticsError(diagnostics: [
+                BitStreamCodingDiagnostic.requiresStoredProperty("'@Bytes'").diagnose(at: Syntax(declaration))
+            ])
         }
-        let message = SimpleDiagnosticMessage(message: "maxCount must be an integerLiteral", diagnosticID: MessageID(domain: "", id: "integerLiteral"), severity: .error)
-        let diagnostic = Diagnostic(node: Syntax(arguments[0]), position: arguments[0].position, message: message)
-        throw DiagnosticsError(diagnostics: [diagnostic])
+        try check(variable: variableDecl, attribute: "@Bytes")
+        guard variableDecl.isArrayType(of: "UInt8") else {
+            throw BitStreamCodingDiagnostic.custom("'@Bytes' can only be applied to byte arrays, i.e. [UInt8] or Array<UInt8>").error(at: Syntax(variableDecl))
+        }
+        return []
     }
     
     private static func arguments(from attribute: SwiftSyntax.AttributeSyntax) throws -> [TupleExprElementSyntax] {
@@ -32,42 +32,22 @@ public struct BytesMacro: MemberAttributeMacro {
     }
     
     internal static func getSyntax(attribute: SwiftSyntax.AttributeSyntax, _ variableDecl: SwiftSyntax.VariableDeclSyntax) throws -> (String, String) {
-        guard let variableName = variableDecl.variableName else {
-            let message = SimpleDiagnosticMessage(message: "Variable has no name.", diagnosticID: MessageID(domain: "", id: "no-variable-name"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(variableDecl), position: variableDecl.position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
-        }
-        guard variableDecl.variableType != nil else {
-            //TODO: Provide fix-it
-            let message = SimpleDiagnosticMessage(message: "Explicitly provide the type annotation.", diagnosticID: MessageID(domain: "", id: "annotation"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(variableDecl), position: variableDecl.position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
-        }
-        guard variableDecl.isArrayType(of: "UInt8") else {
-            //TODO: Provide fix-it
-            let message = SimpleDiagnosticMessage(message: "Bytes annotation can only be applied to byte arrays, i.e. [UInt8] or Array<UInt8>", diagnosticID: MessageID(domain: "", id: "only-arrays"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(variableDecl), position: variableDecl.position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
-        }
+        let variableName = variableDecl.variableName!
         let arguments = try arguments(from: attribute)
         if arguments.count == 0 {
             let initSyntax = "self.\(variableName) = try stream.readBytes()"
             let encodeSyntax = "stream.appendBytes(\(variableName))"
             return (initSyntax, encodeSyntax)
         } else if arguments.count == 1 {
-            let maxCount = try getMaxCount(arguments)
+            let maxCount = try get(arguments, name: "maxCount", position: 0, as: .integer)
             
             guard let intMaxCount = Int(maxCount), intMaxCount > 0, intMaxCount < 1 << 29 else {
-                let message = SimpleDiagnosticMessage(message: "maxCount must be more than zero and less than 2^29", diagnosticID: MessageID(domain: "", id: "maxCount < 1 << 29"), severity: .error)
-                let diagnostic = Diagnostic(node: Syntax(variableDecl), position: variableDecl.position, message: message)
-                throw DiagnosticsError(diagnostics: [diagnostic])
+                throw BitStreamCodingDiagnostic.custom("Parameter maxCount must be more than zero and less than 2^29").error(at: Syntax(variableDecl))
             }
             let initSyntax = "self.\(variableName) = try stream.readBytes(maxCount: \(maxCount))"
             let encodeSyntax = "stream.appendBytes(\(variableName), maxCount: \(maxCount))"
             return (initSyntax, encodeSyntax)
         }
-        let message = SimpleDiagnosticMessage(message: "Supply either maxCount parameter or no parameters", diagnosticID: MessageID(domain: "", id: "0 or 1 args"), severity: .error)
-        let diagnostic = Diagnostic(node: Syntax(variableDecl), position: variableDecl.position, message: message)
-        throw DiagnosticsError(diagnostics: [diagnostic])
+        throw BitStreamCodingDiagnostic.custom("Supply either maxCount parameter or no parameters.").error(at: Syntax(variableDecl))
     }
 }

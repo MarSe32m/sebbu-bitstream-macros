@@ -1,41 +1,41 @@
 @_exported import SebbuBitStream
 
-@attached(member, names: arbitrary)
+@attached(member, names: named(init), named(encode), named(CodingKey))
 @attached(conformance)
 public macro BitStreamCoding() = #externalMacro(module: "SebbuBitStreamMacrosLib", type: "BitStreamCodingMacro")
 
-@attached(memberAttribute)
+@attached(peer)
 public macro CompressedFloat(min: Float, max: Float, bits: Int) = #externalMacro(module: "SebbuBitStreamMacrosLib", type: "CompressedFloatMacro")
 
-@attached(memberAttribute)
+@attached(peer)
 public macro CompressedDouble(min: Double, max: Double, bits: Int) = #externalMacro(module: "SebbuBitStreamMacrosLib", type: "CompressedDoubleMacro")
 
-@attached(memberAttribute)
+@attached(peer)
 public macro CompressedInt(min: Int, max: Int) = #externalMacro(module: "SebbuBitStreamMacrosLib", type: "CompressedIntMacro")
 
-@attached(memberAttribute)
+@attached(peer)
 public macro CompressedUInt(min: UInt, max: UInt) = #externalMacro(module: "SebbuBitStreamMacrosLib", type: "CompressedUIntMacro")
 
-@attached(memberAttribute)
+@attached(peer)
 public macro NumberOfBits(_ bits: Int) = #externalMacro(module: "SebbuBitStreamMacrosLib", type: "NumberOfBitsMacro")
 
-@attached(memberAttribute)
-public macro SkipBitStreamCoding() = #externalMacro(module: "SebbuBitStreamMacrosLib", type: "SkipBitStreamCodingMacro")
-
-@attached(memberAttribute)
+@attached(peer)
 public macro CompressedFloatArray(min: Float, max: Float, bits: Int, maxCount: Int) = #externalMacro(module: "SebbuBitStreamMacrosLib", type: "CompressedFloatArrayMacro")
 
-@attached(memberAttribute)
+@attached(peer)
 public macro CompressedDoubleArray(min: Double, max: Double, bits: Int, maxCount: Int) = #externalMacro(module: "SebbuBitStreamMacrosLib", type: "CompressedDoubleArrayMacro")
 
-@attached(memberAttribute)
+@attached(peer)
 public macro CompressedIntArray(min: Int, max: Int, maxCount: Int) = #externalMacro(module: "SebbuBitStreamMacrosLib", type: "CompressedIntArrayMacro")
 
-@attached(memberAttribute)
+@attached(peer)
 public macro CompressedUIntArray(min: UInt, max: UInt, maxCount: Int) = #externalMacro(module: "SebbuBitStreamMacrosLib", type: "CompressedUIntArrayMacro")
 
-@attached(memberAttribute)
+@attached(peer)
 public macro BoundedArray(maxCount: Int) = #externalMacro(module: "SebbuBitStreamMacrosLib", type: "BoundedArrayMacro")
 
-@attached(memberAttribute)
+@attached(peer)
 public macro Bytes(maxCount: Int = 1 << 29) = #externalMacro(module: "SebbuBitStreamMacrosLib", type: "BytesMacro")
+
+@attached(peer)
+public macro SkipBitStreamCoding() = #externalMacro(module: "SebbuBitStreamMacrosLib", type: "SkipBitStreamCodingMacro")

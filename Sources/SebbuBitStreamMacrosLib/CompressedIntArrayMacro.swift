@@ -9,71 +9,26 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 import SwiftDiagnostics
 
-public struct CompressedIntArrayMacro: MemberAttributeMacro {
-    public static func expansion(of node: SwiftSyntax.AttributeSyntax, attachedTo declaration: some SwiftSyntax.DeclGroupSyntax, providingAttributesFor member: some SwiftSyntax.DeclSyntaxProtocol, in context: some SwiftSyntaxMacros.MacroExpansionContext) throws -> [SwiftSyntax.AttributeSyntax] {
-        []
-    }
-    
-    private static func getMinValue(_ arguments: [TupleExprElementSyntax]) throws -> String {
-        if let value = arguments[0].expression.as(IntegerLiteralExprSyntax.self)?.digits.text {
-            return value
-        } else if let operatorExpression = arguments[0].expression.as(PrefixOperatorExprSyntax.self) {
-            let operatorToken = operatorExpression.operatorToken?.text ?? ""
-            if let value = operatorExpression.postfixExpression.as(IntegerLiteralExprSyntax.self)?.digits.text {
-                return operatorToken + value
-            }
+public struct CompressedIntArrayMacro: PeerMacro {
+    public static func expansion(of node: SwiftSyntax.AttributeSyntax, providingPeersOf declaration: some SwiftSyntax.DeclSyntaxProtocol, in context: some SwiftSyntaxMacros.MacroExpansionContext) throws -> [SwiftSyntax.DeclSyntax] {
+        guard let variableDecl = declaration.as(VariableDeclSyntax.self), variableDecl.isStoredProperty else {
+            throw DiagnosticsError(diagnostics: [
+                BitStreamCodingDiagnostic.requiresStoredProperty("'@CompressedIntArray'").diagnose(at: Syntax(declaration))
+            ])
         }
-        let message = SimpleDiagnosticMessage(message: "min must be an integerLiteral", diagnosticID: MessageID(domain: "", id: "integerLiteral"), severity: .error)
-        let diagnostic = Diagnostic(node: Syntax(arguments[0]), position: arguments[0].position, message: message)
-        throw DiagnosticsError(diagnostics: [diagnostic])
-    }
-    
-    private static func getMaxValue(_ arguments: [TupleExprElementSyntax]) throws -> String {
-        if let value = arguments[1].expression.as(IntegerLiteralExprSyntax.self)?.digits.text {
-            return value
-        } else if let operatorExpression = arguments[1].expression.as(PrefixOperatorExprSyntax.self) {
-            let operatorToken = operatorExpression.operatorToken?.text ?? ""
-            if let value = operatorExpression.postfixExpression.as(IntegerLiteralExprSyntax.self)?.digits.text {
-                return operatorToken + value
-            }
-        }
-        let message = SimpleDiagnosticMessage(message: "max must be an integerLiteral", diagnosticID: MessageID(domain: "", id: "integerLiteral"), severity: .error)
-        let diagnostic = Diagnostic(node: Syntax(arguments[1]), position: arguments[1].position, message: message)
-        throw DiagnosticsError(diagnostics: [diagnostic])
-    }
-    
-    private static func getMaxCount(_ arguments: [TupleExprElementSyntax]) throws -> String {
-        if let value = arguments[2].expression.as(IntegerLiteralExprSyntax.self)?.digits.text {
-            return value
-        }
-        let message = SimpleDiagnosticMessage(message: "maxCount must be an integerLiteral", diagnosticID: MessageID(domain: "", id: "integerLiteral"), severity: .error)
-        let diagnostic = Diagnostic(node: Syntax(arguments[2]), position: arguments[2].position, message: message)
-        throw DiagnosticsError(diagnostics: [diagnostic])
-    }
-    
-    internal static func getSyntax(attribute: SwiftSyntax.AttributeSyntax,  _ variableDecl: SwiftSyntax.VariableDeclSyntax) throws -> (String, String) {
-        guard let variableName = variableDecl.variableName else {
-            let message = SimpleDiagnosticMessage(message: "Variable has no name.", diagnosticID: MessageID(domain: "", id: "no-variable-name"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(variableDecl), position: variableDecl.position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
-        }
-        guard variableDecl.variableType != nil else {
-            //TODO: Provide fix-it
-            let message = SimpleDiagnosticMessage(message: "Integer array compression can only be applied to variables of type [Int], [Int64], [Int32], [Int16] or [Int8]. Explicitly provide the type annotation.", diagnosticID: MessageID(domain: "", id: "annotation"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(variableDecl), position: variableDecl.position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
-        }
+        try check(variable: variableDecl, attribute: "@CompressedIntArray")
         guard variableDecl.isArrayType(of: "Int", "Int64", "Int32", "Int16", "Int8") else {
-            //TODO: Provide fix-it
-            let message = SimpleDiagnosticMessage(message: "Integer array compression can only be applied to arrays of type [Int], [Int64], [Int32], [Int16] or [Int8].", diagnosticID: MessageID(domain: "", id: "only-int-arrays"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(variableDecl), position: variableDecl.position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
+            throw BitStreamCodingDiagnostic.custom("Integer array compression can only be applied to arrays of type [Int], [Int64], [Int32], [Int16] or [Int8]").error(at: Syntax(variableDecl))
         }
-        let arguments = try arguments(from: attribute, desiredAttributeCount: 3)
-        
-        let minValue = try getMinValue(arguments)
-        let maxValue = try getMaxValue(arguments)
-        let maxCount = try getMaxCount(arguments)
+        return []
+    }
+    
+    internal static func getSyntax(attribute: SwiftSyntax.AttributeSyntax, _ variableDecl: SwiftSyntax.VariableDeclSyntax) throws -> (String, String) {
+        let variableName = variableDecl.variableName!
+        let arguments = try arguments(from: attribute, desiredArgumentCount: 3)
+        let minValue = try get(arguments, name: "min", position: 0, as: .integer)
+        let maxValue = try get(arguments, name: "max", position: 1, as: .integer)
+        let maxCount = try get(arguments, name: "maxCount", position: 2, as: .integer)
         
         let (minAllowed, maxAllowed) =
             if variableDecl.isArrayType(of: "Int") {
@@ -91,27 +46,19 @@ public struct CompressedIntArrayMacro: MemberAttributeMacro {
             }
         
         guard let minInt = Int(minValue), let maxInt = Int(maxValue), minInt < maxInt else {
-            let message = SimpleDiagnosticMessage(message: "The minimum value must be less than the maximum value", diagnosticID: MessageID(domain: "", id: "min < max"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(variableDecl), position: variableDecl.position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
+            throw BitStreamCodingDiagnostic.custom("The minimum value must be less than the maximum value").error(at: Syntax(variableDecl))
         }
         
         guard minInt >= minAllowed else {
-            let message = SimpleDiagnosticMessage(message: "The minimum value must be more than or equal to \(minAllowed)", diagnosticID: MessageID(domain: "", id: "min > minAllowed"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(arguments[0]), position: arguments[0].position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
+            throw BitStreamCodingDiagnostic.custom("The minimum value must be more than or equal to \(minAllowed)").error(at: Syntax(variableDecl))
         }
         
         guard maxInt <= maxAllowed else {
-            let message = SimpleDiagnosticMessage(message: "The maximum value must be less than or equal to \(maxAllowed)", diagnosticID: MessageID(domain: "", id: "min > minAllowed"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(arguments[1]), position: arguments[1].position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
+            throw BitStreamCodingDiagnostic.custom("The maximum value must be less than or equal to \(maxAllowed)").error(at: Syntax(variableDecl))
         }
         
         guard let intMaxCount = Int(maxCount), intMaxCount > 0, intMaxCount < 1 << 29 else {
-            let message = SimpleDiagnosticMessage(message: "maxCount must be more than zero and less than 2^29", diagnosticID: MessageID(domain: "", id: "maxCount < 1 << 29"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(variableDecl), position: variableDecl.position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
+            throw BitStreamCodingDiagnostic.custom("Parameter maxCount must be more than zero or less than 2^29").error(at: Syntax(variableDecl))
         }
         
         let compressor = "IntCompressor(minValue: \(minValue), maxValue: \(maxValue))"

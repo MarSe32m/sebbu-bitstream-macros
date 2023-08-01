@@ -3,27 +3,52 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 import SwiftDiagnostics
 
-struct SimpleDiagnosticMessage: DiagnosticMessage {
-  let message: String
-  let diagnosticID: MessageID
-  let severity: DiagnosticSeverity
+struct SimpleDiagnosticMessage: DiagnosticMessage, Error {
+    let message: String
+    var diagnosticID: MessageID { MessageID(domain: "Swift", id: "BitStreamCoding") }
+    let severity: DiagnosticSeverity
+    
+    func diagnose(at node: Syntax) -> Diagnostic {
+        Diagnostic(node: node, message: self)
+    }
 }
 
-public struct BitStreamCodingMacro: MemberMacro {
+extension DeclGroupSyntax {
+    func storedProperties() -> [VariableDeclSyntax] {
+        return memberBlock.members.compactMap { member in
+            guard let variable = member.decl.as(VariableDeclSyntax.self),
+                  variable.isStoredProperty else {
+                return nil
+            }
+            return variable
+        }
+    }
+}
+
+extension DeclSyntaxProtocol {
+    var isStoredProperty: Bool {
+        if let variable = self.as(VariableDeclSyntax.self), variable.isStoredProperty {
+            return true
+        }
+        return false
+    }
+}
+
+public struct BitStreamCodingMacro: MemberMacro, ExtensionMacro {
     public static func expansion(of node: SwiftSyntax.AttributeSyntax, providingMembersOf declaration: some SwiftSyntax.DeclGroupSyntax, in context: some SwiftSyntaxMacros.MacroExpansionContext) throws -> [SwiftSyntax.DeclSyntax] {
         if declaration.is(StructDeclSyntax.self) || declaration.is(ClassDeclSyntax.self)  {
             return try basicExpansion(of: node, providingMembersOf: declaration, in: context)
         } else if declaration.is(EnumDeclSyntax.self) {
             return try enumExpansion(of: node, providingMembersOf: declaration, in: context)
         } else {
-            let message = SimpleDiagnosticMessage(message: "BitStreamCoding can only be applied to structs, classes or enums.", diagnosticID: MessageID(domain: "", id: "struct-class-enum"), severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(declaration), position: declaration.position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
+            throw DiagnosticsError(diagnostics: [
+                BitStreamCodingDiagnostic.requiresEnumClassOrStruct(declaration).diagnose(at: node)
+            ])
         }
     }
     
     private static func throwMultipleAttributesApplied(_ attribute: AttributeSyntax) throws {
-        let message = SimpleDiagnosticMessage(message: "Multiple BitStream attributes supplied. Only one is allowed.", diagnosticID: MessageID(domain: "", id: "multiple-attributes"), severity: .error)
+        let message = SimpleDiagnosticMessage(message: "Multiple BitStream attributes supplied. Only one is allowed.", severity: .error)
         let diagnostic = Diagnostic(node: Syntax(attribute), position: attribute.position, message: message)
         throw DiagnosticsError(diagnostics: [diagnostic])
     }
@@ -31,9 +56,7 @@ public struct BitStreamCodingMacro: MemberMacro {
     private static func basicExpansion(of node: SwiftSyntax.AttributeSyntax, providingMembersOf declaration: some SwiftSyntax.DeclGroupSyntax, in context: some SwiftSyntaxMacros.MacroExpansionContext) throws -> [SwiftSyntax.DeclSyntax] {
         var initSyntax: [String] = []
         var encodeSyntax: [String] = []
-        for member in declaration.memberBlock.members {
-            // Only apply coding to variables
-            guard let variableDecl = member.decl.as(SwiftSyntax.VariableDeclSyntax.self) else { continue }
+        for variableDecl in declaration.storedProperties() where !variableDecl.isStatic {
             // We don't want to encode and decode constants
             if variableDecl.isConstantAndInitialized { continue }
             guard let attributes = variableDecl.attributes, !attributes.isEmpty else {
@@ -158,11 +181,11 @@ public struct BitStreamCodingMacro: MemberMacro {
         
         
         let codingKeysDeclSyntax: DeclSyntax = DeclSyntax(stringLiteral:
-                                                "@usableFromInline\n"
-                                             +  "internal enum CodingKey: UInt32, CaseIterable {\n"
-                                             +  "\(cases.map {"case \($0.caseName)"}.joined(separator: "\n"))"
-                                             +  "}")
-
+                                                            "@usableFromInline\n"
+                                                          +  "internal enum CodingKey: UInt32, CaseIterable {\n"
+                                                          +  "\(cases.map {"case \($0.caseName)"}.joined(separator: "\n"))"
+                                                          +  "}")
+        
         for (caseName, payload) in cases {
             var initCase = "case .\(caseName): self = .\(caseName)"
             var encodeCase = "case .\(caseName)"
@@ -192,7 +215,7 @@ public struct BitStreamCodingMacro: MemberMacro {
     
     private static func getDefaultSyntax(_ variableDecl: SwiftSyntax.VariableDeclSyntax) throws -> (String, String) {
         guard let variableName = variableDecl.variableName else {
-            let message = SimpleDiagnosticMessage(message: "Variable has no name.", diagnosticID: MessageID(domain: "", id: "no-variable-name"), severity: .error)
+            let message = SimpleDiagnosticMessage(message: "Variable has no name.", severity: .error)
             let diagnostic = Diagnostic(node: Syntax(variableDecl), position: variableDecl.position, message: message)
             throw DiagnosticsError(diagnostics: [diagnostic])
         }
