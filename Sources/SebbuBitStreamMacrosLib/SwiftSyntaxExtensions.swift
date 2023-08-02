@@ -26,4 +26,21 @@ extension DeclGroupSyntax {
             fatalError("Unknown DeclGroupSyntax")
         }
     }
+    
+    func storedProperties() -> [VariableDeclSyntax] {
+        return memberBlock.members.compactMap { member in
+            guard let variable = member.decl.as(VariableDeclSyntax.self),
+                  variable.isStoredProperty else {
+                return nil
+            }
+            return variable
+        }
+    }
+    
+    var isStoredProperty: Bool {
+        if let variable = self.as(VariableDeclSyntax.self), variable.isStoredProperty {
+            return true
+        }
+        return false
+    }
 }

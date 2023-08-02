@@ -3,37 +3,6 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 import SwiftDiagnostics
 
-struct SimpleDiagnosticMessage: DiagnosticMessage, Error {
-    let message: String
-    var diagnosticID: MessageID { MessageID(domain: "Swift", id: "BitStreamCoding") }
-    let severity: DiagnosticSeverity
-    
-    func diagnose(at node: Syntax) -> Diagnostic {
-        Diagnostic(node: node, message: self)
-    }
-}
-
-extension DeclGroupSyntax {
-    func storedProperties() -> [VariableDeclSyntax] {
-        return memberBlock.members.compactMap { member in
-            guard let variable = member.decl.as(VariableDeclSyntax.self),
-                  variable.isStoredProperty else {
-                return nil
-            }
-            return variable
-        }
-    }
-}
-
-extension DeclSyntaxProtocol {
-    var isStoredProperty: Bool {
-        if let variable = self.as(VariableDeclSyntax.self), variable.isStoredProperty {
-            return true
-        }
-        return false
-    }
-}
-
 public struct BitStreamCodingMacro: MemberMacro, ExtensionMacro {
     public static func expansion(of node: SwiftSyntax.AttributeSyntax, providingMembersOf declaration: some SwiftSyntax.DeclGroupSyntax, in context: some SwiftSyntaxMacros.MacroExpansionContext) throws -> [SwiftSyntax.DeclSyntax] {
         if declaration.is(StructDeclSyntax.self) || declaration.is(ClassDeclSyntax.self)  {
@@ -48,9 +17,7 @@ public struct BitStreamCodingMacro: MemberMacro, ExtensionMacro {
     }
     
     private static func throwMultipleAttributesApplied(_ attribute: AttributeSyntax) throws {
-        let message = SimpleDiagnosticMessage(message: "Multiple BitStream attributes supplied. Only one is allowed.", severity: .error)
-        let diagnostic = Diagnostic(node: Syntax(attribute), position: attribute.position, message: message)
-        throw DiagnosticsError(diagnostics: [diagnostic])
+        throw BitStreamCodingDiagnostic.custom("Multiple BitStream attributes supplied. Only one is allowed.").error(at: Syntax(attribute))
     }
     
     private static func basicExpansion(of node: SwiftSyntax.AttributeSyntax, providingMembersOf declaration: some SwiftSyntax.DeclGroupSyntax, in context: some SwiftSyntaxMacros.MacroExpansionContext) throws -> [SwiftSyntax.DeclSyntax] {
@@ -215,9 +182,7 @@ public struct BitStreamCodingMacro: MemberMacro, ExtensionMacro {
     
     private static func getDefaultSyntax(_ variableDecl: SwiftSyntax.VariableDeclSyntax) throws -> (String, String) {
         guard let variableName = variableDecl.variableName else {
-            let message = SimpleDiagnosticMessage(message: "Variable has no name.", severity: .error)
-            let diagnostic = Diagnostic(node: Syntax(variableDecl), position: variableDecl.position, message: message)
-            throw DiagnosticsError(diagnostics: [diagnostic])
+            throw BitStreamCodingDiagnostic.custom("Variable has no name.").error(at: Syntax(variableDecl))
         }
         let initSyntax = "self.\(variableName) = try stream.read()"
         let encodeSyntax = "stream.append(\(variableName))"
