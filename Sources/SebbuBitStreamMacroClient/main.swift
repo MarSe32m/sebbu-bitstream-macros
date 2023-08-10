@@ -137,7 +137,7 @@ struct Packet {
     
     let payload: Payload
     
-    internal init(payload: Packet.Payload) {
+    internal init(payload: Payload) {
         self.payload = payload
     }
 }
@@ -146,17 +146,48 @@ extension Packet {
     @BitStreamCoding
     enum Payload {
         case connection(ConnectionPacket)
-        case case2
-        case case3
-        case case4
+        case disconnect
+        case reconnect(Int)
+        case validation(Int)
     }
 }
+
+let LIB_VERSION: UInt = 1
 
 let con = Packet(payload: .connection(ConnectionPacket(id: 1, connectionId: nil, x: 10, y: 10)))
 var writeStream = WritableBitStream()
 writeStream.append(con)
 print(writeStream.packBytes().count)
 
+
+@discardableResult
+func outboundOut(_ packet: Packet) -> [UInt8] {
+    // Reset the write stream
+    writeStream.reset()
+    // Write version
+    writeStream.append(LIB_VERSION, numberOfBits: 18)
+    // Write packet
+    writeStream.append(packet)
+    // Pack bytes with CRC
+    return writeStream.packBytes(withCrc: true)
+}
+
+func inboundIn(_ data: [UInt8]) throws -> Packet {
+    // Validate CRC
+    var readStream = try ReadableBitStream(bytes: data, crcValidated: true)
+    // Read version
+    let version: UInt = try readStream.read(numberOfBits: 18)
+    if version != LIB_VERSION {
+        print("Version mismatch, received version \(version) while the local LIB_VERSION is \(LIB_VERSION)")
+    }
+    // Read the packet
+    return try readStream.read()
+}
+
+let packet = Packet(payload: .connection(ConnectionPacket(id: 1, connectionId: 27, x: 10, y: 10)))
+let data = outboundOut(packet)
+let packetNew = try inboundIn(data)
+print(packet, packetNew)
 
 /*
 let vector1 = Vector()
@@ -168,3 +199,21 @@ print(vector1)
 print(vec)
 print(vector1 == vec)
 */
+
+@BitStreamCoding
+struct Vehtor {
+    @CompressedFloat(min: -128.0, max: 128.0, bits: 20)
+    var x: Float
+    
+    @CompressedDouble(min: -128.0, max: 128.0, bits: 20)
+    var y: Double
+    
+    @CompressedInt(min: 0, max: 2000)
+    var level: Int
+    
+    @CompressedUInt(min: 0, max: 3000)
+    var subLevel: UInt
+    
+    @BoundedArray(maxCount: 64)
+    var array: [Float]
+}

@@ -217,6 +217,7 @@ struct Vector {
     func function() {
 
     }
+
     @inlinable
     public init(from stream: inout ReadableBitStream) throws {
         let __floatCompressor = FloatCompressor(minValue: 0, maxValue: 10.0, bits: 9)
@@ -274,6 +275,7 @@ struct Vector {
         self.bytess = try stream.readBytes(maxCount: 28)
         self.vecComp = try stream.read()
     }
+
     @inlinable
     public func encode(to stream: inout WritableBitStream) {
         let __floatCompressor = FloatCompressor(minValue: 0, maxValue: 10.0, bits: 9)
@@ -333,6 +335,7 @@ struct Vector {
     }
 
 }
+
 extension Vector: BitStreamCodable {
 }
 """,
@@ -548,6 +551,7 @@ class Vector {
     func function() {
 
     }
+
     @inlinable
     public required init(from stream: inout ReadableBitStream) throws {
         let __floatCompressor = FloatCompressor(minValue: 0, maxValue: 10.0, bits: 9)
@@ -605,6 +609,7 @@ class Vector {
         self.bytess = try stream.readBytes(maxCount: 28)
         self.vecComp = try stream.read()
     }
+
     @inlinable
     public func encode(to stream: inout WritableBitStream) {
         let __floatCompressor = FloatCompressor(minValue: 0, maxValue: 10.0, bits: 9)
@@ -664,6 +669,7 @@ class Vector {
     }
 
 }
+
 extension Vector: BitStreamCodable {
 }
 """,
@@ -689,12 +695,14 @@ enum Packet {
 enum Packet {
     case case1(Payload1, Payload2)
     case case2, case3(Payload3)
+
     @usableFromInline
     internal enum CodingKey: UInt32, CaseIterable {
         case case1
         case case2
         case case3
     }
+
     @inlinable
     public init(from stream: inout ReadableBitStream) throws {
         let codingKey = try stream.read() as CodingKey
@@ -707,6 +715,7 @@ enum Packet {
             self = .case3(try stream.read())
         }
     }
+
     @inlinable
     public func encode(to stream: inout WritableBitStream) {
         switch self {
@@ -722,6 +731,7 @@ enum Packet {
         }
     }
 }
+
 extension Packet: BitStreamCodable {
 }
 """,

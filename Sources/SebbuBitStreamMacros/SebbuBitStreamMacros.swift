@@ -1,7 +1,7 @@
 @_exported import SebbuBitStream
 
 @attached(member, names: named(init), named(encode), named(CodingKey))
-@attached(conformance)
+@attached(extension, conformances: BitStreamCodable, names: named(init), named(encode))
 public macro BitStreamCoding() = #externalMacro(module: "SebbuBitStreamMacrosLib", type: "BitStreamCodingMacro")
 
 @attached(peer)

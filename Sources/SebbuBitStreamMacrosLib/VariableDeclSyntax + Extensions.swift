@@ -9,7 +9,7 @@ import SwiftSyntax
 
 extension VariableDeclSyntax {
     var isConstantAndInitialized: Bool {
-        if bindingKeyword.text == "let" {
+        if bindingSpecifier.text == "let" {
             for binding in bindings {
                 if binding.initializer != nil { return true }
             }
@@ -44,7 +44,7 @@ extension VariableDeclSyntax {
     
     func isSimpleType(of: String) -> Bool {
         guard let type = variableType else { return false }
-        if let simpleTypeIdentifier = type.as(SimpleTypeIdentifierSyntax.self) {
+        if let simpleTypeIdentifier = type.as(IdentifierTypeSyntax.self) {
             return simpleTypeIdentifier.name.text == of
         }
         return false
@@ -59,18 +59,18 @@ extension VariableDeclSyntax {
     
     func isSimpleType() -> Bool {
         guard let type = variableType else { return false }
-        return type.is(SimpleTypeIdentifierSyntax.self)
+        return type.is(IdentifierTypeSyntax.self)
     }
     
     func isArrayType(of: String) -> Bool {
         guard let type = variableType else { return false }
-        if let simpleTypeIdentifier = type.as(ArrayTypeSyntax.self)?.elementType.as(SimpleTypeIdentifierSyntax.self) {
+        if let simpleTypeIdentifier = type.as(ArrayTypeSyntax.self)?.element.as(IdentifierTypeSyntax.self) {
             return simpleTypeIdentifier.name.text == of
-        } else if let simpleTypeIdentifier = type.as(SimpleTypeIdentifierSyntax.self) {
+        } else if let simpleTypeIdentifier = type.as(IdentifierTypeSyntax.self) {
             if simpleTypeIdentifier.name.text == "Array" {
                 if let genericArguments = simpleTypeIdentifier.genericArgumentClause?.arguments {
                     if genericArguments.count == 1 {
-                        if let simpleTypeId = genericArguments.first?.argumentType.as(SimpleTypeIdentifierSyntax.self) {
+                        if let simpleTypeId = genericArguments.first?.argument.as(IdentifierTypeSyntax.self) {
                             return simpleTypeId.name.text == of
                         }
                     }
@@ -99,13 +99,13 @@ extension VariableDeclSyntax {
         }
         
         let binding = bindings.first!
-        switch binding.accessor {
+        switch binding.accessorBlock?.accessors {
         case .none:
             return true
             
         case .accessors(let node):
-            for accessor in node.accessors {
-                switch accessor.accessorKind.tokenKind {
+            for accessor in node {
+                switch accessor.accessorSpecifier.tokenKind {
                 case .keyword(.willSet), .keyword(.didSet):
                     // Observers can occur on a stored property.
                     break

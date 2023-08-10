@@ -23,12 +23,12 @@ public struct BytesMacro: PeerMacro {
         return []
     }
     
-    private static func arguments(from attribute: SwiftSyntax.AttributeSyntax) throws -> [TupleExprElementSyntax] {
+    private static func arguments(from attribute: SwiftSyntax.AttributeSyntax) throws -> [LabeledExprSyntax] {
         // If there are no arguments, @Bytes was provided which is totally valid
-        guard case .argumentList(let argumentList) = attribute.argument else {
+        guard case .argumentList(let argumentList) = attribute.arguments else {
             return []
         }
-        return argumentList.children(viewMode: .sourceAccurate).compactMap { $0.as(TupleExprElementSyntax.self) }
+        return argumentList.children(viewMode: .sourceAccurate).compactMap { $0.as(LabeledExprSyntax.self) }
     }
     
     internal static func getSyntax(attribute: SwiftSyntax.AttributeSyntax, _ variableDecl: SwiftSyntax.VariableDeclSyntax) throws -> (String, String) {

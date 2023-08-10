@@ -3,7 +3,13 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 import SwiftDiagnostics
 
-public struct BitStreamCodingMacro: MemberMacro, ExtensionMacro {
+public struct PathMacro: PeerMacro {
+    public static func expansion(of node: AttributeSyntax, providingPeersOf declaration: some DeclSyntaxProtocol, in context: some MacroExpansionContext) throws -> [DeclSyntax] {
+        return []
+    }
+}
+
+public struct BitStreamCodingMacro: MemberMacro {
     public static func expansion(of node: SwiftSyntax.AttributeSyntax, providingMembersOf declaration: some SwiftSyntax.DeclGroupSyntax, in context: some SwiftSyntaxMacros.MacroExpansionContext) throws -> [SwiftSyntax.DeclSyntax] {
         if declaration.is(StructDeclSyntax.self) || declaration.is(ClassDeclSyntax.self)  {
             return try basicExpansion(of: node, providingMembersOf: declaration, in: context)
@@ -37,7 +43,7 @@ public struct BitStreamCodingMacro: MemberMacro, ExtensionMacro {
                 guard let attribute = attributeListItem.as(SwiftSyntax.AttributeSyntax.self) else {
                     continue
                 }
-                guard let attributeName = attribute.attributeName.as(SimpleTypeIdentifierSyntax.self)?.name.text else { continue }
+                guard let attributeName = attribute.attributeName.as(IdentifierTypeSyntax.self)?.name.text else { continue }
                 
                 switch attributeName {
                 case "SkipBitStreamCoding":
@@ -140,12 +146,11 @@ public struct BitStreamCodingMacro: MemberMacro, ExtensionMacro {
         for member in declaration.memberBlock.members {
             guard let enumCaseDecl = member.decl.as(EnumCaseDeclSyntax.self) else { continue }
             for caseElement in enumCaseDecl.elements {
-                let caseName = caseElement.identifier.text
-                let payloads = caseElement.associatedValue?.parameterList.compactMap {$0.type.as(SimpleTypeIdentifierSyntax.self)?.name.text} ?? []
+                let caseName = caseElement.name.text
+                let payloads = caseElement.parameterClause?.parameters.compactMap {$0.type.as(IdentifierTypeSyntax.self)?.name.text} ?? []
                 cases.append((caseName, payloads))
             }
         }
-        
         
         let codingKeysDeclSyntax: DeclSyntax = DeclSyntax(stringLiteral:
                                                             "@usableFromInline\n"
@@ -190,9 +195,10 @@ public struct BitStreamCodingMacro: MemberMacro, ExtensionMacro {
     }
 }
 
-extension BitStreamCodingMacro: ConformanceMacro {
-    public static func expansion(of node: SwiftSyntax.AttributeSyntax, providingConformancesOf declaration: some SwiftSyntax.DeclGroupSyntax, in context: some SwiftSyntaxMacros.MacroExpansionContext) throws -> [(SwiftSyntax.TypeSyntax, SwiftSyntax.GenericWhereClauseSyntax?)] {
-        [("BitStreamCodable", nil)]
+extension BitStreamCodingMacro: ExtensionMacro {
+    public static func expansion(of node: AttributeSyntax, attachedTo declaration: some DeclGroupSyntax, providingExtensionsOf type: some TypeSyntaxProtocol, conformingTo protocols: [TypeSyntax], in context: some MacroExpansionContext) throws -> [ExtensionDeclSyntax] {
+        let newExtension = try ExtensionDeclSyntax("extension \(type): BitStreamCodable") {}
+        return [newExtension]
     }
 }
 
@@ -211,6 +217,7 @@ struct BitStreamMacroPlugin: CompilerPlugin {
         CompressedUIntArrayMacro.self,
         BoundedArrayMacro.self,
         BytesMacro.self,
-        SkipBitStreamCodingMacro.self
+        SkipBitStreamCodingMacro.self,
+        PathMacro.self
     ]
 }

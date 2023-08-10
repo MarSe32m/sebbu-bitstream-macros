@@ -6,7 +6,7 @@
       "location" : "https://github.com/MarSe32m/sebbu-bitstream.git",
       "state" : {
         "branch" : "main",
-        "revision" : "381ef78a200ab11356f0b8a637943d199a0f771b"
+        "revision" : "ae20db5f12c1b4372e15e902240ba32fd83286ee"
       }
     },
     {
@@ -14,8 +14,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-syntax.git",
       "state" : {
-        "revision" : "67c5007099d9ffdd292f421f81f4efe5ee42963e",
-        "version" : "509.0.0-swift-DEVELOPMENT-SNAPSHOT-2023-07-10-a"
+        "revision" : "e42bece52df2496d60b1b2a762fee9ffde7fc205",
+        "version" : "509.0.0-swift-DEVELOPMENT-SNAPSHOT-2023-08-07-a"
       }
     }
   ],
