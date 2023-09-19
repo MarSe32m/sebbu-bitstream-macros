@@ -32,7 +32,8 @@ public struct BitStreamCodingMacro: MemberMacro {
         for variableDecl in declaration.storedProperties() where !variableDecl.isStatic {
             // We don't want to encode and decode constants
             if variableDecl.isConstantAndInitialized { continue }
-            guard let attributes = variableDecl.attributes, !attributes.isEmpty else {
+            let attributes = variableDecl.attributes
+            guard !attributes.isEmpty else {
                 let (_init, _encode) = try getDefaultSyntax(variableDecl)
                 initSyntax.append(_init)
                 encodeSyntax.append(_encode)

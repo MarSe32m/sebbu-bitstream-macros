@@ -18,10 +18,7 @@ extension VariableDeclSyntax {
     }
     
     var isStatic: Bool {
-        if let modifiers = modifiers {
-            return modifiers.contains { $0.name.text == "static"} 
-        }
-        return false
+        modifiers.contains { $0.name.text == "static" }
     }
     
     var variableName: String? {
